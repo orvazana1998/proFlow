@@ -494,7 +494,7 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
             st.dataframe(df)
             st.markdown('</div>', unsafe_allow_html=True)
 
-    elif app_view == "סטטיסטיקה ובקרה (SPC)":
+     elif app_view == "סטטיסטיקה ובקרה (SPC)":
         st.header("📈 בקרת תהליכים סטטיסטית - עומסי משאבים")
         st.write("מודול תומך החלטה המנתח עומסים היסטוריים לזיהוי אנומליות תפעוליות.")
 
