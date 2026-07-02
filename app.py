@@ -153,8 +153,14 @@ def calculate_pert_ccpm(tasks):
         te = (o + 4 * m + p) / 6
         var = ((p - o) / 6) ** 2
         task.update({
-            "TE": te, "Var": var, "ES": 0, "EF": 0,
-            "LS": 0, "LF": 0, "Slack": 0, "סטטוס": "NORMAL"
+            "TE": te,
+            "Var": var,
+            "ES": 0,
+            "EF": 0,
+            "LS": 0,
+            "LF": 0,
+            "Slack": 0,
+            "סטטוס": "NORMAL"
         })
 
     changed = True
@@ -251,8 +257,9 @@ elif st.session_state.page == "auth":
                     })
                     st.session_state.user = res.user
                     navigate_to("app")
-                except Exception:
+                except Exception as e:
                     st.error("שגיאה בהתחברות.")
+                    st.code(str(e))
 
         with tab2:
             reg_name = st.text_input("שם מלא", key="reg_name")
@@ -266,12 +273,16 @@ elif st.session_state.page == "auth":
                         "password": reg_pass
                     })
                     if res.user:
-                        supabase.table("profiles").update({
-                            "full_name": reg_name
-                        }).eq("id", res.user.id).execute()
+                        try:
+                            supabase.table("profiles").update({
+                                "full_name": reg_name
+                            }).eq("id", res.user.id).execute()
+                        except Exception:
+                            pass
                     st.success("נרשמת! עבור להתחברות.")
-                except Exception:
+                except Exception as e:
                     st.error("שגיאה בהרשמה.")
+                    st.code(str(e))
 
         if st.button("← חזרה"):
             navigate_to("landing")
@@ -389,14 +400,24 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
                         "target_due_date": due_date
                     }).execute()
 
-                    supabase.table("project_snapshots").insert({
-                        "project_id": new_proj.data[0]["id"],
+                    project_id = None
+                    if new_proj.data and len(new_proj.data) > 0:
+                        project_id = new_proj.data[0].get("id")
+
+                    snap_data = {
                         "total_days": safe_dur,
                         "critical_tasks_count": sum(1 for r in results if r["סטטוס"] == "CRITICAL"),
                         "bottleneck_machine": drum_machine
-                    }).execute()
-                except Exception:
-                    pass
+                    }
+
+                    if project_id is not None:
+                        snap_data["project_id"] = project_id
+
+                    supabase.table("project_snapshots").insert(snap_data).execute()
+
+                except Exception as e:
+                    st.warning("החישוב הצליח, אבל הייתה בעיה בשמירה למסד הנתונים.")
+                    st.code(str(e))
 
         if st.session_state.last_results:
             data = st.session_state.last_results
@@ -494,7 +515,7 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
             st.dataframe(df)
             st.markdown('</div>', unsafe_allow_html=True)
 
-     elif app_view == "סטטיסטיקה ובקרה (SPC)":
+    elif app_view == "סטטיסטיקה ובקרה (SPC)":
         st.header("📈 בקרת תהליכים סטטיסטית - עומסי משאבים")
         st.write("מודול תומך החלטה המנתח עומסים היסטוריים לזיהוי אנומליות תפעוליות.")
 
@@ -519,54 +540,53 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
         )
 
         st.plotly_chart(fig_spc)
-elif app_view == "היסטוריית פרויקטים":
-    st.header("🗂️ מאגר נתוני פרויקטים")
 
-    try:
-        response = (
-            supabase.table("project_snapshots")
-            .select("*")
-            .order("created_at", desc=True)
-            .execute()
-        )
+    elif app_view == "היסטוריית פרויקטים":
+        st.header("🗂️ מאגר נתוני פרויקטים")
 
-        if not response.data:
-            st.info("אין נתונים היסטוריים.")
-        else:
-            st.success(f"נמצאו {len(response.data)} רשומות היסטוריה")
+        try:
+            response = (
+                supabase.table("project_snapshots")
+                .select("*")
+                .order("created_at", desc=True)
+                .execute()
+            )
 
-            df = pd.DataFrame(response.data)
-            st.dataframe(df)
+            if not response.data:
+                st.info("אין נתונים היסטוריים.")
+            else:
+                st.success(f"נמצאו {len(response.data)} רשומות היסטוריה")
 
-            for snap in response.data:
-                title = f"📁 פרויקט ID: {snap.get('project_id', 'לא ידוע')}"
+                df = pd.DataFrame(response.data)
+                st.dataframe(df)
 
-                with st.expander(title):
-                    c1, c2, c3 = st.columns(3)
+                for i, snap in enumerate(response.data, start=1):
+                    title = f"📁 רשומה {i}"
 
-                    c1.metric(
-                        "זמן בטוח מחושב",
-                        f"{snap.get('total_days', 0):.1f}"
-                    )
+                    with st.expander(title):
+                        c1, c2, c3 = st.columns(3)
 
-                    c2.metric(
-                        "מספר משימות קריטיות",
-                        snap.get("critical_tasks_count", "לא ידוע")
-                    )
+                        total_days = snap.get("total_days", None)
+                        critical_tasks = snap.get("critical_tasks_count", "לא ידוע")
+                        bottleneck = snap.get("bottleneck_machine", "לא ידוע")
 
-                    c3.metric(
-                        "אילוץ אסטרטגי",
-                        snap.get("bottleneck_machine", "לא ידוע")
-                    )
+                        if total_days is not None:
+                            c1.metric("זמן בטוח מחושב", f"{float(total_days):.1f}")
+                        else:
+                            c1.metric("זמן בטוח מחושב", "לא קיים")
 
-                    if "created_at" in snap:
-                        st.caption(f"תאריך יצירה: {snap['created_at']}")
+                        c2.metric("מספר משימות קריטיות", critical_tasks)
+                        c3.metric("אילוץ אסטרטגי", bottleneck if bottleneck else "אין")
 
-    except Exception as e:
-        st.error("שגיאה בתקשורת מול מסד הנתונים.")
-        st.code(str(e))
+                        if "project_id" in snap:
+                            st.caption(f"מזהה פרויקט: {snap.get('project_id')}")
+                        if "created_at" in snap:
+                            st.caption(f"תאריך יצירה: {snap.get('created_at')}")
 
-
+        except Exception as e:
+            st.error("שגיאה בתקשורת מול מסד הנתונים.")
+            st.code(str(e))
 
 else:
     navigate_to("landing")
+    
