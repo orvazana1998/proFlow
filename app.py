@@ -524,11 +524,14 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
         st.header("🗂️ מאגר נתוני פרויקטים")
 
         try:
-            response = supabase.table("projects") \
-                .select("*, project_snapshots(*)") \
-                .eq("user_id", st.session_state.user.id) \
-                .order("created_at", desc=True) \
+            response = (
+                supabase.table("project_snapshots")
+                .select("*")
+                .eq("user_id", st.session_state.user.id)
+                .order("created_at", desc=True)
                 .execute()
+        )
+
 
             if not response.data:
                 st.info("אין נתונים היסטוריים.")
