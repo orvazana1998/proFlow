@@ -519,32 +519,54 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
         )
 
         st.plotly_chart(fig_spc)
-
     elif app_view == "היסטוריית פרויקטים":
-        st.header("🗂️ מאגר נתוני פרויקטים")
+    st.header("🗂️ מאגר נתוני פרויקטים")
 
-        try:
-            response = (
-                supabase.table("project_snapshots")
-                .select("*")
-                .eq("user_id", st.session_state.user.id)
-                .order("created_at", desc=True)
-                .execute()
+    try:
+        response = (
+            supabase.table("project_snapshots")
+            .select("*")
+            .order("created_at", desc=True)
+            .execute()
         )
 
+        if not response.data:
+            st.info("אין נתונים היסטוריים.")
+        else:
+            st.success(f"נמצאו {len(response.data)} רשומות היסטוריה")
 
-            if not response.data:
-                st.info("אין נתונים היסטוריים.")
+            df = pd.DataFrame(response.data)
+            st.dataframe(df)
 
-            for proj in response.data:
-                with st.expander(f"📁 {proj['project_name']} | יעד מקורי: {proj['target_due_date']}"):
-                    if proj.get("project_snapshots"):
-                        s = proj["project_snapshots"][0]
-                        c1, c2 = st.columns(2)
-                        c1.metric("זמן בטוח מחושב", f"{s['total_days']:.1f}")
-                        c2.metric("אילוץ אסטרטגי", s["bottleneck_machine"])
-        except Exception:
-            st.error("שגיאה בתקשורת מול מסד הנתונים.")
+            for snap in response.data:
+                title = f"📁 פרויקט ID: {snap.get('project_id', 'לא ידוע')}"
+
+                with st.expander(title):
+                    c1, c2, c3 = st.columns(3)
+
+                    c1.metric(
+                        "זמן בטוח מחושב",
+                        f"{snap.get('total_days', 0):.1f}"
+                    )
+
+                    c2.metric(
+                        "מספר משימות קריטיות",
+                        snap.get("critical_tasks_count", "לא ידוע")
+                    )
+
+                    c3.metric(
+                        "אילוץ אסטרטגי",
+                        snap.get("bottleneck_machine", "לא ידוע")
+                    )
+
+                    if "created_at" in snap:
+                        st.caption(f"תאריך יצירה: {snap['created_at']}")
+
+    except Exception as e:
+        st.error("שגיאה בתקשורת מול מסד הנתונים.")
+        st.code(str(e))
+
+
 
 else:
     navigate_to("landing")
