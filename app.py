@@ -552,47 +552,47 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
         st.header("🗂️ מאגר נתוני פרויקטים")
 
         try:
+            # משיכת הפרויקטים ששייכים אך ורק למשתמש המחובר, וצירוף נתוני הסנאפשוטים שלהם
             response = (
-                supabase.table("project_snapshots")
-                .select("id, project_id, total_days, critical_tasks_count, bottleneck_machine, created_at, projects(id, project_name, target_due_date, user_id)")
+                supabase.table("projects")
+                .select("id, project_name, target_due_date, created_at, project_snapshots(id, total_days, critical_tasks_count, bottleneck_machine, created_at)")
+                .eq("user_id", st.session_state.user.id)
                 .order("created_at", desc=True)
                 .execute()
             )
 
             rows = []
 
-            for snap in response.data or []:
-                project_data = snap.get("projects")
+            for proj in response.data or []:
+                snapshots = proj.get("project_snapshots")
                 
-                # טיפול במבנה הנתונים החוזר מ-Supabase (רשימה או מילון)
-                if isinstance(project_data, list) and len(project_data) > 0:
-                    project = project_data[0]
-                elif isinstance(project_data, dict):
-                    project = project_data
-                else:
-                    project = {}
+                # טיפול במבנה הנתונים (מערך או מילון בודד)
+                if isinstance(snapshots, dict):
+                    snapshots = [snapshots]
+                elif not snapshots:
+                    snapshots = []
 
-                # בדיקה האם הפרויקט שייך למשתמש הנוכחי
-                if project.get("user_id") == st.session_state.user.id:
-                    
-                    # ניקוי פורמט התאריך לתצוגה חלקה
+                for snap in snapshots:
                     created_at = snap.get("created_at", "")
                     if created_at:
                         created_at = created_at.split("T")[0]
 
                     rows.append({
-                        "שם פרויקט": project.get("project_name", "ללא שם"),
-                        "יעד אספקה": project.get("target_due_date", ""),
+                        "שם פרויקט": proj.get("project_name", "ללא שם"),
+                        "יעד אספקה": proj.get("target_due_date", ""),
                         "זמן בטוח": snap.get("total_days", ""),
                         "משימות קריטיות": snap.get("critical_tasks_count", ""),
                         "אילוץ": snap.get("bottleneck_machine", "") or "אין",
                         "תאריך יצירה": created_at,
-                        "מזהה פרויקט": snap.get("project_id", "")
+                        "מזהה פרויקט": proj.get("id", "")
                     })
 
             if not rows:
                 st.info("אין נתונים היסטוריים למשתמש הזה.")
             else:
+                # מיון הרשומות כך שהחדשות ביותר יופיעו למעלה
+                rows = sorted(rows, key=lambda x: x["תאריך יצירה"], reverse=True)
+                
                 df = pd.DataFrame(rows)
                 st.success(f"נמצאו {len(df)} רשומות")
                 st.dataframe(df, use_container_width=True)
