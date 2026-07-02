@@ -541,50 +541,49 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
 
         st.plotly_chart(fig_spc)
 
-    elif app_view == "היסטוריית פרויקטים":
+        elif app_view == "היסטוריית פרויקטים":
         st.header("🗂️ מאגר נתוני פרויקטים")
 
         try:
             response = (
                 supabase.table("project_snapshots")
-                .select("*")
+                .select("id, project_id, total_days, critical_tasks_count, bottleneck_machine, created_at, projects(project_name, target_due_date, user_id)")
                 .order("created_at", desc=True)
                 .execute()
             )
 
-            if not response.data:
-                st.info("אין נתונים היסטוריים.")
+            rows = []
+            for snap in response.data or []:
+                project = snap.get("projects") or {}
+
+                if project.get("user_id") == st.session_state.user.id:
+                    rows.append({
+                        "שם פרויקט": project.get("project_name", ""),
+                        "יעד אספקה": project.get("target_due_date", ""),
+                        "זמן בטוח": snap.get("total_days", ""),
+                        "משימות קריטיות": snap.get("critical_tasks_count", ""),
+                        "אילוץ": snap.get("bottleneck_machine", ""),
+                        "תאריך": snap.get("created_at", "")
+                    })
+
+            if not rows:
+                st.info("אין נתונים היסטוריים למשתמש הזה.")
             else:
-                st.success(f"נמצאו {len(response.data)} רשומות היסטוריה")
+                df = pd.DataFrame(rows)
+                st.success(f"נמצאו {len(df)} רשומות")
+                st.dataframe(df, use_container_width=True)
 
-                df = pd.DataFrame(response.data)
-                st.dataframe(df)
-
-                for i, snap in enumerate(response.data, start=1):
-                    title = f"📁 רשומה {i}"
-
-                    with st.expander(title):
+                for i, row in enumerate(rows, start=1):
+                    with st.expander(f"📁 {row['שם פרויקט']}"):
                         c1, c2, c3 = st.columns(3)
-
-                        total_days = snap.get("total_days", None)
-                        critical_tasks = snap.get("critical_tasks_count", "לא ידוע")
-                        bottleneck = snap.get("bottleneck_machine", "לא ידוע")
-
-                        if total_days is not None:
-                            c1.metric("זמן בטוח מחושב", f"{float(total_days):.1f}")
-                        else:
-                            c1.metric("זמן בטוח מחושב", "לא קיים")
-
-                        c2.metric("מספר משימות קריטיות", critical_tasks)
-                        c3.metric("אילוץ אסטרטגי", bottleneck if bottleneck else "אין")
-
-                        if "project_id" in snap:
-                            st.caption(f"מזהה פרויקט: {snap.get('project_id')}")
-                        if "created_at" in snap:
-                            st.caption(f"תאריך יצירה: {snap.get('created_at')}")
+                        c1.metric("זמן בטוח", row["זמן בטוח"])
+                        c2.metric("משימות קריטיות", row["משימות קריטיות"])
+                        c3.metric("אילוץ", row["אילוץ"] or "אין")
+                        st.caption(f"יעד אספקה: {row['יעד אספקה']}")
+                        st.caption(f"תאריך יצירה: {row['תאריך']}")
 
         except Exception as e:
-            st.error("שגיאה בתקשורת מול מסד הנתונים.")
+            st.error("שגיאה בקריאת היסטוריית הפרויקטים")
             st.code(str(e))
 
 else:
