@@ -541,7 +541,7 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
 
         st.plotly_chart(fig_spc)
 
-        elif app_view == "היסטוריית פרויקטים":
+     elif app_view == "היסטוריית פרויקטים":
         st.header("🗂️ מאגר נתוני פרויקטים")
 
         try:
