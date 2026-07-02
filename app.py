@@ -148,19 +148,13 @@ def navigate_to(page_name):
 def calculate_pert_ccpm(tasks):
     task_dict = {t["id"]: t.copy() for t in tasks if t["id"]}
 
-    for t_id, task in task_dict.items():
+    for task in task_dict.values():
         o, m, p = task["opt"], task["lik"], task["pes"]
         te = (o + 4 * m + p) / 6
         var = ((p - o) / 6) ** 2
         task.update({
-            "TE": te,
-            "Var": var,
-            "ES": 0,
-            "EF": 0,
-            "LS": 0,
-            "LF": 0,
-            "Slack": 0,
-            "סטטוס": "NORMAL"
+            "TE": te, "Var": var, "ES": 0, "EF": 0,
+            "LS": 0, "LF": 0, "Slack": 0, "סטטוס": "NORMAL"
         })
 
     changed = True
@@ -172,7 +166,9 @@ def calculate_pert_ccpm(tasks):
                 vals = [task_dict[p]["EF"] for p in task["predecessors"] if p in task_dict]
                 if vals:
                     es = max(vals)
+
             ef = es + task["TE"]
+
             if abs(task["ES"] - es) > 0.001 or abs(task["EF"] - ef) > 0.001:
                 task["ES"], task["EF"] = es, ef
                 changed = True
@@ -188,16 +184,20 @@ def calculate_pert_ccpm(tasks):
         changed = False
         for t_id, task in task_dict.items():
             successors = [t for t in task_dict.values() if t_id in t["predecessors"]]
+
             if successors:
                 lf = min([s["LS"] for s in successors])
                 ls = lf - task["TE"]
+
                 if abs(task["LF"] - lf) > 0.001 or abs(task["LS"] - ls) > 0.001:
                     task["LF"], task["LS"] = lf, ls
                     changed = True
 
     critical_variance_sum = 0
+
     for task in task_dict.values():
         task["Slack"] = task["LF"] - task["EF"]
+
         if task["Slack"] <= 0.001:
             task["סטטוס"] = "CRITICAL"
             critical_variance_sum += task["Var"]
@@ -209,6 +209,7 @@ def calculate_pert_ccpm(tasks):
 
 def identify_drum(results):
     loads = {}
+
     for r in results:
         if r["machine"] != "ללא מכונה":
             loads[r["machine"]] = loads.get(r["machine"], 0) + r["TE"]
@@ -272,6 +273,7 @@ elif st.session_state.page == "auth":
                         "email": reg_email,
                         "password": reg_pass
                     })
+
                     if res.user:
                         try:
                             supabase.table("profiles").update({
@@ -279,7 +281,9 @@ elif st.session_state.page == "auth":
                             }).eq("id", res.user.id).execute()
                         except Exception:
                             pass
+
                     st.success("נרשמת! עבור להתחברות.")
+
                 except Exception as e:
                     st.error("שגיאה בהרשמה.")
                     st.code(str(e))
@@ -327,8 +331,10 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
 
             with c_name:
                 proj_name = st.text_input("שם הפרויקט", value="מודל תכנון 1")
+
             with c_tasks:
                 num_tasks = st.number_input("מספר משימות", min_value=1, value=5)
+
             with c_due:
                 due_date = st.number_input("יעד אספקה (ימים)", min_value=1, value=25)
 
@@ -352,15 +358,20 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
 
                 with c1:
                     t_id = st.text_input("מזהה", key=f"id_{i}", placeholder="A").strip()
+
                 with c2:
                     opt = st.number_input("אופטימי", min_value=0.1, value=1.0, key=f"opt_{i}")
+
                 with c3:
                     lik = st.number_input("סביר", min_value=0.1, value=2.0, key=f"lik_{i}")
+
                 with c4:
                     pes = st.number_input("פסימי", min_value=0.1, value=4.0, key=f"pes_{i}")
+
                 with c5:
                     pred_text = st.text_input("קודמות (פסיק)", key=f"pred_{i}")
                     preds = [p.strip() for p in pred_text.split(",") if p.strip()]
+
                 with c6:
                     mach = st.selectbox("משאב", machine_options, key=f"mach_{i}")
 
@@ -397,23 +408,19 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
                     new_proj = supabase.table("projects").insert({
                         "user_id": st.session_state.user.id,
                         "project_name": proj_name,
-                        "target_due_date": due_date
+                        "target_due_date": int(due_date)
                     }).execute()
 
-                    project_id = None
-                    if new_proj.data and len(new_proj.data) > 0:
-                        project_id = new_proj.data[0].get("id")
+                    project_id = new_proj.data[0]["id"]
 
-                    snap_data = {
-                        "total_days": safe_dur,
-                        "critical_tasks_count": sum(1 for r in results if r["סטטוס"] == "CRITICAL"),
+                    supabase.table("project_snapshots").insert({
+                        "project_id": project_id,
+                        "total_days": int(round(safe_dur)),
+                        "critical_tasks_count": int(sum(1 for r in results if r["סטטוס"] == "CRITICAL")),
                         "bottleneck_machine": drum_machine
-                    }
+                    }).execute()
 
-                    if project_id is not None:
-                        snap_data["project_id"] = project_id
-
-                    supabase.table("project_snapshots").insert(snap_data).execute()
+                    st.success("הפרויקט נשמר בהצלחה.")
 
                 except Exception as e:
                     st.warning("החישוב הצליח, אבל הייתה בעיה בשמירה למסד הנתונים.")
@@ -506,13 +513,13 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
                 height=430
             )
 
-            st.plotly_chart(fig)
+            st.plotly_chart(fig, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
             st.markdown('<div class="card">', unsafe_allow_html=True)
             st.subheader("📋 טבלת תוצאות")
             df = pd.DataFrame(results)
-            st.dataframe(df)
+            st.dataframe(df, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     elif app_view == "סטטיסטיקה ובקרה (SPC)":
@@ -539,31 +546,33 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
             template="plotly_white"
         )
 
-        st.plotly_chart(fig_spc)
+        st.plotly_chart(fig_spc, use_container_width=True)
 
-     elif app_view == "היסטוריית פרויקטים":
+    elif app_view == "היסטוריית פרויקטים":
         st.header("🗂️ מאגר נתוני פרויקטים")
 
         try:
             response = (
                 supabase.table("project_snapshots")
-                .select("id, project_id, total_days, critical_tasks_count, bottleneck_machine, created_at, projects(project_name, target_due_date, user_id)")
+                .select("id, project_id, total_days, critical_tasks_count, bottleneck_machine, created_at, projects(id, project_name, target_due_date, user_id)")
                 .order("created_at", desc=True)
                 .execute()
             )
 
             rows = []
+
             for snap in response.data or []:
                 project = snap.get("projects") or {}
 
                 if project.get("user_id") == st.session_state.user.id:
                     rows.append({
-                        "שם פרויקט": project.get("project_name", ""),
+                        "שם פרויקט": project.get("project_name", "ללא שם"),
                         "יעד אספקה": project.get("target_due_date", ""),
                         "זמן בטוח": snap.get("total_days", ""),
                         "משימות קריטיות": snap.get("critical_tasks_count", ""),
-                        "אילוץ": snap.get("bottleneck_machine", ""),
-                        "תאריך": snap.get("created_at", "")
+                        "אילוץ": snap.get("bottleneck_machine", "") or "אין",
+                        "תאריך יצירה": snap.get("created_at", ""),
+                        "מזהה פרויקט": snap.get("project_id", "")
                     })
 
             if not rows:
@@ -578,9 +587,9 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
                         c1, c2, c3 = st.columns(3)
                         c1.metric("זמן בטוח", row["זמן בטוח"])
                         c2.metric("משימות קריטיות", row["משימות קריטיות"])
-                        c3.metric("אילוץ", row["אילוץ"] or "אין")
+                        c3.metric("אילוץ", row["אילוץ"])
                         st.caption(f"יעד אספקה: {row['יעד אספקה']}")
-                        st.caption(f"תאריך יצירה: {row['תאריך']}")
+                        st.caption(f"תאריך יצירה: {row['תאריך יצירה']}")
 
         except Exception as e:
             st.error("שגיאה בקריאת היסטוריית הפרויקטים")
@@ -588,4 +597,3 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
 
 else:
     navigate_to("landing")
-    
