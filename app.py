@@ -348,9 +348,9 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
                 "אקסטרוזיה",
                 "חיתוך למידה",
                 "בדיקת איכות",
-                "מכונת CNC 5 מכונת",
+                "מכונת CNC 5 צירים",
                 "צביעה",
-                "בקרה סופית CNC"
+                "בקרה סופית"
             ]
 
             for i in range(int(num_tasks)):
@@ -562,16 +562,31 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
             rows = []
 
             for snap in response.data or []:
-                project = snap.get("projects") or {}
+                project_data = snap.get("projects")
+                
+                # טיפול במבנה הנתונים החוזר מ-Supabase (רשימה או מילון)
+                if isinstance(project_data, list) and len(project_data) > 0:
+                    project = project_data[0]
+                elif isinstance(project_data, dict):
+                    project = project_data
+                else:
+                    project = {}
 
+                # בדיקה האם הפרויקט שייך למשתמש הנוכחי
                 if project.get("user_id") == st.session_state.user.id:
+                    
+                    # ניקוי פורמט התאריך לתצוגה חלקה
+                    created_at = snap.get("created_at", "")
+                    if created_at:
+                        created_at = created_at.split("T")[0]
+
                     rows.append({
                         "שם פרויקט": project.get("project_name", "ללא שם"),
                         "יעד אספקה": project.get("target_due_date", ""),
                         "זמן בטוח": snap.get("total_days", ""),
                         "משימות קריטיות": snap.get("critical_tasks_count", ""),
                         "אילוץ": snap.get("bottleneck_machine", "") or "אין",
-                        "תאריך יצירה": snap.get("created_at", ""),
+                        "תאריך יצירה": created_at,
                         "מזהה פרויקט": snap.get("project_id", "")
                     })
 
