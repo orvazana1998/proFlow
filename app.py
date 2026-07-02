@@ -188,7 +188,7 @@ elif st.session_state.page == "app" and st.session_state.user is not None:
             st.markdown("---")
             st.markdown("**הערכת זמנים (PERT 3-Point):** הזן זמן אופטימי, סביר ופסימי לכל משימה.")
             tasks_input = []
-            machine_options = ["ללא מכונה", "מכונת CNC 3 צירים", "מכונת CNC 5 צירים", "צביעה", "בקרה סופית"]
+            machine_options = ["ללא מכונה", "מכונת CNC 3 צירים","אקסטרוזיה","חיתוך למידה","בדיקת איכות", "מכונת CNC 5 מכונת ", "צביעה", "בקרה סופית CNC "]
             
             for i in range(int(num_tasks)):
                 c1, c2, c3, c4, c5, c6 = st.columns([1.5, 1, 1, 1, 2, 2])
